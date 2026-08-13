@@ -69,15 +69,6 @@
   .msg { border-radius: 9px; padding: 9px 12px; font-size: 14px; font-weight: 600; margin-bottom: 12px; }
   .msg.err { color: var(--down); background: var(--down-bg); border: 1px solid var(--down-border); }
   .msg.ok  { color: var(--up); background: var(--up-bg); border: 1px solid var(--up-border); display: flex; align-items: center; gap: 8px; }
-  .msg.warn { color: var(--accent-ink); background: var(--sheet); font-weight: 500; }
-
-  /* Photo dropzone */
-  .drop { display: flex; align-items: center; justify-content: center; gap: 8px; border: 2px dashed var(--accent-strong); background: rgba(254,243,199,.4); border-radius: 12px; padding: 16px; cursor: pointer; color: var(--ink-soft); font-size: 14px; font-weight: 500; margin-bottom: 16px; }
-  .drop.preview { border-style: solid; border-color: var(--border); justify-content: flex-start; padding: 10px; }
-  .drop img { width: 48px; height: 48px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); flex: 0 0 auto; }
-  .drop .changer { color: var(--accent-ink); font-weight: 700; font-size: 12px; margin-left: auto; }
-  .spin { width: 16px; height: 16px; border: 2px solid var(--accent-strong); border-top-color: transparent; border-radius: 50%; animation: sp .7s linear infinite; }
-  @keyframes sp { to { transform: rotate(360deg); } }
 
   /* Portfolio */
   .group { background: var(--card); border: 1px solid var(--border); border-radius: 16px; overflow: hidden; box-shadow: 0 1px 2px rgba(0,0,0,.04); margin-bottom: 12px; }
@@ -140,15 +131,11 @@
 "use strict";
 
 /* ============ Config ============ */
-// Modèle utilisé pour la lecture photo. Remplaçable par "claude-sonnet-5" pour + de précision (coût supérieur).
-const AI_MODEL = "claude-haiku-4-5-20251001";
 const STORAGE_KEY = "positions";
-const APIKEY_KEY = "anthropic_api_key";
-
 const DEVISES = { EUR: { symbole: "€", label: "Euro (€)" }, USD: { symbole: "$", label: "Dollar ($)" } };
 
 /* ============ State ============ */
-const state = { positions: [], tab: "achat", apiKey: "" };
+const state = { positions: [], tab: "achat" };
 
 /* ============ Persistence ============ */
 function loadState() {
@@ -156,14 +143,9 @@ function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) state.positions = JSON.parse(raw);
   } catch (e) { state.positions = []; }
-  try { state.apiKey = localStorage.getItem(APIKEY_KEY) || ""; } catch (e) {}
 }
 function savePositions() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.positions)); } catch (e) {}
-}
-function saveApiKey(k) {
-  state.apiKey = k;
-  try { k ? localStorage.setItem(APIKEY_KEY, k) : localStorage.removeItem(APIKEY_KEY); } catch (e) {}
 }
 
 /* ============ Helpers ============ */
@@ -187,7 +169,6 @@ const I = {
   check: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
   ok:    '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
   trash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
-  cam:   '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>',
   chevD: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>',
   chevU: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>',
   trUp:  '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>',
@@ -219,6 +200,13 @@ function renderSummary() {
   }
   const devs = Object.keys(byDev);
   const el = document.getElementById("summary");
+
+  function card(lbl, val, positif, trend) {
+    let cls = "card-sm", ic = "";
+    if (trend) { cls += positif ? " up" : " down"; ic = positif ? I.trUp : I.trDown; }
+    return '<div class="' + cls + '"><div class="lbl">' + esc(lbl) + '</div><div class="val mono">' + ic + val + '</div></div>';
+  }
+
   if (!devs.length) {
     el.innerHTML =
       card("Investi (positions ouvertes)", fmtMoney(0, "EUR"), null) +
@@ -230,12 +218,6 @@ function renderSummary() {
     return card("Investi (" + d + ")", fmtMoney(t.investi, d), null) +
            card("Gain réalisé (" + d + ")", fmtMoney(t.realise, d), t.realise >= 0, true);
   }).join("");
-
-  function card(lbl, val, positif, trend) {
-    let cls = "card-sm", ic = "";
-    if (trend) { cls += positif ? " up" : " down"; ic = positif ? I.trUp : I.trDown; }
-    return '<div class="' + cls + '"><div class="lbl">' + esc(lbl) + '</div><div class="val mono">' + ic + val + '</div></div>';
-  }
 }
 
 /* ============ Render : tabs + view ============ */
@@ -257,9 +239,6 @@ function render() {
 function renderAchat(root) {
   root.innerHTML =
     '<div class="panel">' +
-      '<input type="file" accept="image/*" id="photo" style="display:none" />' +
-      '<div class="drop" id="drop">' + I.cam + '<span id="dropTxt">Remplir depuis une photo de l\'ordre (facultatif)</span></div>' +
-      '<div id="warn"></div>' +
       field("Nom de l'action", "f_nom", "text", "ex. LVMH") +
       field("Ticker (optionnel)", "f_ticker", "text", "ex. MC.PA") +
       '<div class="grid2">' +
@@ -276,22 +255,15 @@ function renderAchat(root) {
       '<button class="btn" id="saveAchat">' + I.check + " Valider et enregistrer l'achat</button>" +
     "</div>";
 
-  document.getElementById("f_date").value = today();
-  syncSym();
-
+  // 'dev' doit être défini AVANT tout appel à syncSym/updateTot (sinon ReferenceError)
   const dev = document.getElementById("f_dev");
-  dev.addEventListener("change", syncSym);
-  ["f_qte", "f_prix", "f_frais"].forEach(id =>
-    document.getElementById(id).addEventListener("input", updateTot));
-
-  document.getElementById("drop").addEventListener("click", () => document.getElementById("photo").click());
-  document.getElementById("photo").addEventListener("change", handlePhoto);
-  document.getElementById("saveAchat").addEventListener("click", submitAchat);
+  document.getElementById("f_date").value = today();
 
   function syncSym() {
     const s = DEVISES[dev.value].symbole;
     const a = document.getElementById("px_sym"), b = document.getElementById("fr_sym");
-    if (a) a.textContent = " (" + s + ")"; if (b) b.textContent = " (" + s + ")";
+    if (a) a.textContent = " (" + s + ")";
+    if (b) b.textContent = " (" + s + ")";
     updateTot();
   }
   function updateTot() {
@@ -303,95 +275,18 @@ function renderAchat(root) {
       line.innerHTML = 'Montant total débité : <span class="mono">' + fmtMoney(tot, dev.value) + "</span> (actions + frais)";
     } else line.style.display = "none";
   }
-}
 
-async function handlePhoto(e) {
-  const file = e.target.files && e.target.files[0];
-  if (!file) return;
-  const drop = document.getElementById("drop"), txt = document.getElementById("dropTxt"), warn = document.getElementById("warn");
-  warn.innerHTML = "";
-
-  if (!state.apiKey) {
-    warn.innerHTML = '<div class="msg warn">La lecture photo nécessite une clé API Anthropic. Ajoute-la dans les réglages (icône ⚙), ou saisis l\'ordre manuellement.</div>';
-    e.target.value = ""; return;
-  }
-
-  drop.classList.add("preview");
-  txt.textContent = "Lecture de la photo en cours…";
-  drop.innerHTML = '<div class="spin"></div><span id="dropTxt">Lecture de la photo en cours…</span>';
-
-  try {
-    const base64 = await new Promise((res, rej) => {
-      const r = new FileReader();
-      r.onload = () => res(r.result.split(",")[1]);
-      r.onerror = rej;
-      r.readAsDataURL(file);
-    });
-
-    const prompt = "Cette image est un ordre d'achat d'actions (avis d'opéré, confirmation de courtier, capture d'écran d'application bancaire, relevé). " +
-      "Analyse-la très attentivement, y compris les petits caractères. Le nom du titre peut apparaître sous des libellés variés (Libellé, Valeur, Titre, Désignation, Instrument). " +
-      "Un code ISIN (2 lettres + 10 caractères) est souvent présent : si tu reconnais l'entreprise associée à cet ISIN ou au ticker, donne son nom complet. Identifie aussi la devise (euro ou dollar). " +
-      'Réponds STRICTEMENT en JSON, sans texte ni markdown : {"nom":"","ticker":"","isin":"","quantite":0,"devise":"EUR","prixAchat":0,"fraisAchat":0,"dateAchat":""}. ' +
-      'devise vaut "EUR" ou "USD" (EUR par défaut). dateAchat au format AAAA-MM-JJ si visible, sinon "". Ne laisse "nom" vide que si aucun indice ne permet de l\'identifier.';
-
-    const resp = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": state.apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify({
-        model: AI_MODEL,
-        max_tokens: 1000,
-        messages: [{
-          role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: file.type || "image/jpeg", data: base64 } },
-            { type: "text", text: prompt },
-          ],
-        }],
-      }),
-    });
-
-    if (!resp.ok) throw new Error("HTTP " + resp.status);
-    const data = await resp.json();
-    const block = (data.content || []).find(b => b.type === "text");
-    const raw = ((block && block.text) || "{}").replace(/```json|```/g, "").trim();
-    const p = JSON.parse(raw);
-
-    setVal("f_nom", p.nom || "");
-    setVal("f_ticker", p.ticker || "");
-    setVal("f_qte", p.quantite ? String(p.quantite) : "");
-    document.getElementById("f_dev").value = p.devise === "USD" ? "USD" : "EUR";
-    setVal("f_prix", p.prixAchat ? String(p.prixAchat) : "");
-    setVal("f_frais", p.fraisAchat ? String(p.fraisAchat) : "0");
-    setVal("f_date", p.dateAchat || today());
-
-    if (!p.nom)
-      warn.innerHTML = '<div class="msg warn">Le nom du titre n\'a pas pu être identifié — renseigne-le manuellement, le reste est prérempli.</div>';
-
-    resetDrop("Champs préremplis depuis la photo — vérifie-les avant de valider.");
-  } catch (err) {
-    warn.innerHTML = '<div class="msg err">Lecture impossible (' + esc(err.message || "erreur") + "). Vérifie la clé API, la connexion, ou saisis manuellement.</div>";
-    resetDrop("Remplir depuis une photo de l'ordre (facultatif)");
-  } finally {
-    e.target.value = "";
-    // recalcul du total après remplissage
-    const ev = new Event("input");
-    ["f_qte", "f_prix", "f_frais"].forEach(id => { const el = document.getElementById(id); if (el) el.dispatchEvent(ev); });
-  }
-
-  function resetDrop(message) {
-    drop.classList.add("preview");
-    drop.innerHTML = I.cam + '<span id="dropTxt">' + esc(message) + '</span><span class="changer" id="chg">Changer</span>';
-    drop.onclick = () => document.getElementById("photo").click();
-  }
+  syncSym();
+  dev.addEventListener("change", syncSym);
+  ["f_qte", "f_prix", "f_frais"].forEach(id =>
+    document.getElementById(id).addEventListener("input", updateTot));
+  document.getElementById("saveAchat").addEventListener("click", submitAchat);
 }
 
 function submitAchat() {
   const box = document.getElementById("amsg");
+  function err(m) { box.innerHTML = '<div class="msg err">' + esc(m) + "</div>"; }
+
   const nom = val("f_nom").trim(), ticker = val("f_ticker").trim();
   const qte = num(val("f_qte")), prix = num(val("f_prix")), frais = num(val("f_frais")) || 0;
   const dev = val("f_dev"), date = val("f_date");
@@ -402,12 +297,9 @@ function submitAchat() {
   if (frais < 0) return err("Les frais ne peuvent pas être négatifs.");
 
   addPosition({ nom, ticker, quantite: qte, devise: dev, prixAchat: prix, fraisAchat: frais, dateAchat: date });
-  render();
-  // le tab est re-rendu : afficher la confirmation dans le nouveau formulaire
+  render(); // re-rend le formulaire (vidé) + les totaux
   const nb = document.getElementById("amsg");
   if (nb) nb.innerHTML = '<div class="msg ok">' + I.ok + " Achat enregistré : " + esc(qte + " " + nom) + " à " + fmtMoney(prix, dev) + ".</div>";
-
-  function err(m) { box.innerHTML = '<div class="msg err">' + esc(m) + "</div>"; }
 }
 
 /* ============ Vente ============ */
@@ -456,9 +348,11 @@ function renderVenteBody(id, open) {
 
 function submitVente(open) {
   const box = document.getElementById("vmsg");
+  function err(m) { box.innerHTML = '<div class="msg err">' + esc(m) + "</div>"; }
+
   const id = val("v_sel");
   const p = open.find(x => x.id === id);
-  if (!p) return (box.innerHTML = '<div class="msg err">Choisis une position à vendre.</div>');
+  if (!p) return err("Choisis une position à vendre.");
   const max = remaining(p), dev = p.devise || "EUR";
   const q = num(val("v_qte")), pv = num(val("v_prix")), fv = num(val("v_frais")) || 0;
 
@@ -475,8 +369,6 @@ function submitVente(open) {
   const nb = document.getElementById("vmsg");
   if (nb) nb.innerHTML = '<div class="msg ok">' + I.ok + " Vente enregistrée : " + esc(q + " " + p.nom) +
     " — gain de " + fmtMoney(gain, dev) + " (" + fmtPct(rendementPct) + ").</div>";
-
-  function err(m) { box.innerHTML = '<div class="msg err">' + esc(m) + "</div>"; }
 }
 
 /* ============ Portefeuille ============ */
@@ -507,7 +399,7 @@ function renderPortefeuille(root) {
       const rest = remaining(p), gLot = p.ventes.reduce((s, v) => s + v.gain, 0), d = p.devise || "EUR";
       const sales = p.ventes.length ? '<div class="sales">' + p.ventes.map(v =>
         '<div class="sale"><span>' + I.up + " " + esc(v.date + " — " + v.quantite + " vendue(s) à ") + fmtMoney(v.prixVente, d) +
-        (v.fraisVente ? esc(" (frais " ) + fmtMoney(v.fraisVente, d) + ")" : "") + '</span><span class="mono ' +
+        (v.fraisVente ? esc(" (frais ") + fmtMoney(v.fraisVente, d) + ")" : "") + '</span><span class="mono ' +
         (v.gain >= 0 ? "gain pos" : "gain neg") + '">' + fmtMoney(v.gain, d) + " (" + fmtPct(v.rendementPct) + ")</span></div>"
       ).join("") + "</div>" : "";
 
@@ -554,15 +446,7 @@ function openSettings() {
       '<button class="btn ghost" id="importBtn">Importer (JSON)</button>' +
     "</div>" +
     '<input type="file" accept="application/json,.json" id="importFile" style="display:none" />' +
-    '<p class="hint">Exporte régulièrement : iOS peut purger le stockage local si l\'app n\'est pas ouverte pendant plusieurs jours.</p>' +
-
-    '<div class="section-lbl">Lecture photo (facultatif)</div>' +
-    '<div class="field"><label>Clé API Anthropic</label><input type="password" id="apiKey" placeholder="sk-ant-…" value="' + esc(state.apiKey) + '" /></div>' +
-    '<p class="hint">Nécessaire uniquement pour préremplir un achat depuis une photo. La clé reste sur ce téléphone (elle n\'est pas dans le dépôt GitHub). Modèle : <span class="mono">' + esc(AI_MODEL) + "</span>.</p>" +
-    '<div class="row2" style="margin-top:10px">' +
-      '<button class="btn" id="saveKey">Enregistrer la clé</button>' +
-      '<button class="btn ghost" id="clearKey">Effacer la clé</button>' +
-    "</div>" +
+    '<p class="hint">Exporte régulièrement : le navigateur peut purger le stockage local si l\'app n\'est pas ouverte pendant plusieurs jours.</p>' +
 
     '<div class="section-lbl">Fermer</div>' +
     '<button class="btn ghost" id="closeSheet">Fermer les réglages</button>';
@@ -570,8 +454,6 @@ function openSettings() {
   document.getElementById("exportBtn").addEventListener("click", exportJSON);
   document.getElementById("importBtn").addEventListener("click", () => document.getElementById("importFile").click());
   document.getElementById("importFile").addEventListener("change", importJSON);
-  document.getElementById("saveKey").addEventListener("click", () => { saveApiKey(document.getElementById("apiKey").value.trim()); closeSettings(); });
-  document.getElementById("clearKey").addEventListener("click", () => { saveApiKey(""); document.getElementById("apiKey").value = ""; });
   document.getElementById("closeSheet").addEventListener("click", closeSettings);
 
   document.getElementById("backdrop").classList.add("open");
@@ -595,7 +477,6 @@ function importJSON(e) {
     try {
       const data = JSON.parse(r.result);
       if (!Array.isArray(data)) throw new Error("format");
-      // validation légère
       const ok = data.every(p => p && typeof p.nom === "string" && typeof p.quantite === "number" && Array.isArray(p.ventes));
       if (!ok) throw new Error("champs");
       if (confirm("Remplacer les " + state.positions.length + " ligne(s) actuelle(s) par les " + data.length + " ligne(s) du fichier ?")) {
@@ -625,7 +506,6 @@ function selectDevise(id) {
   return '<div class="field"><label>Devise</label><select id="' + id + '">' + opts + "</select></div>";
 }
 function val(id) { const e = document.getElementById(id); return e ? e.value : ""; }
-function setVal(id, v) { const e = document.getElementById(id); if (e) e.value = v; }
 
 /* ============ Boot ============ */
 loadState();
